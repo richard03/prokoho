@@ -1,0 +1,197 @@
+/*
+Theme Name:   prokoho.cz
+Description:  Write here a brief description about your child-theme
+Author:       Richard Šerý
+Author URL:   https://prokoho.cz
+Template:     chronus
+Version:      1.0
+License:      GNU General Public License v2 or later
+License URI:  http://www.gnu.org/licenses/gpl-2.0.html
+Text Domain:  prokoho-cz
+*/
+
+/* Write here your own personal stylesheet */
+
+html {
+	overflow-y: scroll;
+}
+.sidebar,
+.comments-area,
+.custom-box-float-right,
+.site-title, 
+.site-description,
+#main-navigation-wrap,
+#colophon {
+	display: none;
+}
+
+
+
+
+
+/* FONTS */
+
+body {
+	font-family: 'Barlow', sans-serif;
+}
+a:link, 
+a:visited {
+	font-weight: bold;
+}
+.site-header a:link,
+site-header a:visited {
+	font-weight: normal;
+}
+.entry-title {
+	font-size: 2rem;
+}
+.entry-content h1,
+.entry-content h2,
+.entry-content h3 {
+	font-size: 1.5rem;
+}
+.entry-content h1 a,
+.entry-content h2 a,
+.entry-content h3 a {
+	text-decoration: none;
+}
+
+
+
+
+
+/* COLORS */
+
+body {
+	background: #fafaf0;
+	color: #000;
+}
+a:link, a:visited {
+	color: #c80d5d;
+}
+.entry-title,
+.entry-content h2, 
+.entry-content h3,
+.entry-content h3 a {
+	color: #888;
+}
+.site-header  {
+	background: #333;
+	color: #eee;
+}
+.site-header a:hover {
+	color: #eee
+}
+.site-content {
+	background: #fff;	
+}
+.header-main {
+	box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.3);
+}
+.site-content {
+	box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1);
+}
+
+
+
+
+
+
+/* LAYOUT */
+
+p, li, h1, h2, h3, h4, h5, h6 {
+	max-width: 50em;
+}
+p {
+	margin-top: 0;
+}
+.site {
+	padding: 0;
+}
+.site-header {
+	margin-bottom: 0;
+}
+.site-content {
+	padding: 2em 2.5em;
+}
+.header-main {
+	padding: 0;
+	margin: 0;
+}
+.content-area {
+	width: 100%;
+	padding-right: 0;
+}
+input[type=text],
+input[type=email],
+textarea,
+select {
+	border: 1px solid rgba(0,0,0,0.15);
+	border-top: 1px solid rgba(0, 0, 0, 0.3);
+	border-right: 1px solid rgba(0, 0, 0, 0.2);
+	line-height: 2em;
+}
+input[type=text],
+input[type=email],
+select {
+	height: 2em;
+}
+textarea {
+	height: 6em;
+}
+.type-page,
+.type-post {
+	margin-bottom: 0;
+}
+
+#footer-widget-area {
+	background: #333;
+	color: #92C92B;
+}
+#footer-widget-area {
+	font-size: 70%;	
+}
+.footer-wrap {
+	padding: 0;
+}
+#footer-widget-area {
+	padding: 30px 10px 10px 10px;
+}
+.footer-widget {
+	margin-left: 30px;
+}
+
+
+
+
+
+@media screen and (min-width: 640px) {
+	#header-widget-area {
+		float: right;
+		text-align: left;
+		padding-left: 1em;
+		border-left: 4px solid #92c92b;
+		margin-top: 1.5em;
+		margin-right: 4em;
+	}
+	#footer-widget-area::after {
+		display: block;
+		content: "";
+		clear: both;
+	}
+	.footer-widget {
+		float: left;
+	}
+}
+
+
+@media screen and (min-width: 1000px) {
+	.site-content {
+		padding: 2em 3%;
+	}
+}
+@media screen and (min-width: 1300px) {
+	.site-content {
+		width: 1300px;
+	}
+}
