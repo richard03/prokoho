@@ -85,7 +85,7 @@
 		border-top: 1px solid #aaa;
 }
 .custom-box-title {
-	margin: 0 0 1em 0;
+	margin: 0 0 1rem 0;
 }
 .custom-box-title a:after  {
 	content:"\203A";
@@ -108,7 +108,6 @@
 
 
 
-
 @media screen and (min-width: 640px) {
 	.custom-block-md {
 		display: block;
@@ -119,7 +118,7 @@
 	}
 	.custom-logo-link {
 		float: left;
-		margin-left: 2em;
+		margin-left: 2rem;
 	}
 	.custom-header-name,
 	.custom-header-description {
@@ -128,9 +127,9 @@
 	}
 	.custom-box {
 		border: 1px solid #aaa;
-		padding: 1.5em 2em 0 2em;
-		margin-top: 1em;
-		margin-bottom: 2em;
+		padding: 1.5rem 2rem 0 2rem;
+		margin-top: 1rem;
+		margin-bottom: 2rem;
 		box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1);
 	}
 	.custom-box-title a {
@@ -145,7 +144,7 @@
 		display: block;
 	}
 	.custom-box-footer {
-		margin-bottom: 1.5em;
+		margin-bottom: 1.5rem;
 	}
 }
 
@@ -168,11 +167,12 @@
 	.custom-box-footer {
 		border-top: 1px solid #aaa;
 		text-align: right;
-		padding-top: 1em;
+		padding-top: 1rem;
+		margin-top: 1rem;
 	}
 	.custom-box-float-right {
 		float: right;
-		margin-left: 6em;
+		margin-left: 6rem;
 	}
 	.custom-hp-perex {
 		padding-right: 600px;
