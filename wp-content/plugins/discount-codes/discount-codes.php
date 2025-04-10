@@ -15,6 +15,7 @@ if (!defined('ABSPATH')) {
 function discount_codes_activate() {
     global $wpdb;
     $table_name = $wpdb->prefix . 'discount_codes';
+    $settings_table = $wpdb->prefix . 'discount_codes_settings';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE IF NOT EXISTS $table_name (
@@ -27,8 +28,16 @@ function discount_codes_activate() {
         PRIMARY KEY  (id)
     ) $charset_collate;";
 
+    $sql_settings = "CREATE TABLE IF NOT EXISTS $settings_table (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        setting_key varchar(50) NOT NULL,
+        setting_value text NOT NULL,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
+    dbDelta($sql_settings);
 }
 register_activation_hook(__FILE__, 'discount_codes_activate');
 
@@ -42,6 +51,15 @@ function discount_codes_menu() {
         'discount_codes_page',
         'dashicons-tickets-alt',
         30
+    );
+    
+    add_submenu_page(
+        'discount-codes',
+        'Nastavení',
+        'Nastavení',
+        'manage_options',
+        'discount-codes-settings',
+        'discount_codes_settings_page'
     );
 }
 add_action('admin_menu', 'discount_codes_menu');
@@ -86,38 +104,311 @@ function generate_discount_code() {
     return $code;
 }
 
+// Stránka nastavení
+function discount_codes_settings_page() {
+    global $wpdb;
+    $settings_table = $wpdb->prefix . 'discount_codes_settings';
+    
+    // Zpracování formuláře
+    if (isset($_POST['save_settings']) && check_admin_referer('save_discount_codes_settings')) {
+        // Uložení pozadí
+        if (isset($_FILES['background_image']) && $_FILES['background_image']['error'] == 0) {
+            $upload_dir = wp_upload_dir();
+            $target_dir = $upload_dir['basedir'] . '/discount-codes/';
+            
+            if (!file_exists($target_dir)) {
+                wp_mkdir_p($target_dir);
+            }
+            
+            $file_name = basename($_FILES['background_image']['name']);
+            $target_file = $target_dir . $file_name;
+            
+            $imageFileType = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+            if ($imageFileType == "jpg" || $imageFileType == "png" || $imageFileType == "jpeg") {
+                if (move_uploaded_file($_FILES['background_image']['tmp_name'], $target_file)) {
+                    $wpdb->replace(
+                        $settings_table,
+                        array(
+                            'setting_key' => 'background_image',
+                            'setting_value' => $upload_dir['baseurl'] . '/discount-codes/' . $file_name
+                        ),
+                        array('%s', '%s')
+                    );
+                }
+            } else {
+                add_settings_error(
+                    'discount_codes_settings',
+                    'invalid_file_type',
+                    'Podporované formáty obrázků jsou pouze JPG a PNG.',
+                    'error'
+                );
+            }
+        }
+        
+        // Uložení nastavení textu
+        $text_settings = array(
+            'discount_y' => $_POST['discount_y'],
+            'discount_color' => $_POST['discount_color'],
+            'discount_align' => $_POST['discount_align'],
+            'code_y' => $_POST['code_y'],
+            'code_color' => $_POST['code_color'],
+            'code_align' => $_POST['code_align'],
+            'date_y' => $_POST['date_y'],
+            'date_color' => $_POST['date_color'],
+            'date_align' => $_POST['date_align']
+        );
+        
+        foreach ($text_settings as $key => $value) {
+            $wpdb->replace(
+                $settings_table,
+                array(
+                    'setting_key' => $key,
+                    'setting_value' => $value
+                ),
+                array('%s', '%s')
+            );
+        }
+    }
+    
+    // Načtení aktuálních nastavení
+    $settings = array();
+    $results = $wpdb->get_results("SELECT setting_key, setting_value FROM $settings_table");
+    foreach ($results as $row) {
+        $settings[$row->setting_key] = $row->setting_value;
+    }
+    
+    // Výchozí hodnoty
+    $defaults = array(
+        'discount_y' => '50',
+        'discount_color' => '#000000',
+        'discount_align' => 'C',
+        'code_y' => '70',
+        'code_color' => '#000000',
+        'code_align' => 'C',
+        'date_y' => '90',
+        'date_color' => '#000000',
+        'date_align' => 'C'
+    );
+    
+    $settings = wp_parse_args($settings, $defaults);
+    ?>
+    <div class="wrap">
+        <h1>Nastavení slevových kupónů</h1>
+        
+        <?php settings_errors('discount_codes_settings'); ?>
+        
+        <form method="post" enctype="multipart/form-data">
+            <?php wp_nonce_field('save_discount_codes_settings'); ?>
+            
+            <h2>Pozadí PDF</h2>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><label for="background_image">Obrázek pozadí</label></th>
+                    <td>
+                        <input type="file" name="background_image" id="background_image" accept="image/jpeg,image/png">
+                        <p class="description">Podporované formáty: JPG, PNG</p>
+                        <?php if (!empty($settings['background_image'])) : ?>
+                            <p class="description">Aktuální obrázek:</p>
+                            <img src="<?php echo esc_url($settings['background_image']); ?>" style="max-width: 300px; margin-top: 10px;">
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            </table>
+            
+            <hr>
+            <h3>Sleva - nastavení textu</h3>
+            <table>
+                <tr>
+                    <th scope="col"><label for="discount_y">Y pozice (%)</label></th>
+                    <th scope="col"><label for="discount_align">Zarovnání</label></th>
+                    <th scope="col"><label for="discount_color">Barva</label></th>
+                </tr>
+                <tr>
+                    <td><input type="number" name="discount_y" id="discount_y" value="<?php echo esc_attr($settings['discount_y']); ?>" min="0" max="100"></td>
+                    <td>
+                        <select name="discount_align" id="discount_align">
+                            <option value="L" <?php selected($settings['discount_align'], 'L'); ?>>Vlevo</option>
+                            <option value="C" <?php selected($settings['discount_align'], 'C'); ?>>Na střed</option>
+                            <option value="R" <?php selected($settings['discount_align'], 'R'); ?>>Vpravo</option>
+                        </select>
+                    </td>
+                    <td><input type="color" name="discount_color" id="discount_color" value="<?php echo esc_attr($settings['discount_color']); ?>"></td>
+                </tr>
+            </table>
+
+            <hr>
+            <h3>Kód - nastavení textu</h3>
+            <table>    
+                <tr>
+                    <th scope="col"><label for="code_y">Y pozice (%)</label></th>
+                    <th scope="col"><label for="code_align">Zarovnání</label></th>
+                    <th scope="col"><label for="code_color">Barva</label></th>
+                </tr>
+                <tr>
+                    <td><input type="number" name="code_y" id="code_y" value="<?php echo esc_attr($settings['code_y']); ?>" min="0" max="100"></td>    
+                    <td>
+                        <select name="code_align" id="code_align">
+                            <option value="L" <?php selected($settings['code_align'], 'L'); ?>>Vlevo</option>
+                            <option value="C" <?php selected($settings['code_align'], 'C'); ?>>Na střed</option>
+                            <option value="R" <?php selected($settings['code_align'], 'R'); ?>>Vpravo</option>
+                        </select>
+                    </td>
+                    <td><input type="color" name="code_color" id="code_color" value="<?php echo esc_attr($settings['code_color']); ?>"></td>
+                </tr>
+            </table>
+
+            <hr>
+            <h3>Datum platnosti - nastavení textu</h3>
+            <table>    
+                <tr>
+                    <th scope="col"><label for="date_y">Y pozice (%)</label></th>
+                    <th scope="col"><label for="date_align">Zarovnání</label></th>
+                    <th scope="col"><label for="date_color">Barva</label></th>
+                </tr>
+                <tr>
+                    <td><input type="number" name="date_y" id="date_y" value="<?php echo esc_attr($settings['date_y']); ?>" min="0" max="100"></td>
+                    <td>
+                        <select name="date_align" id="date_align">
+                            <option value="L" <?php selected($settings['date_align'], 'L'); ?>>Vlevo</option>
+                            <option value="C" <?php selected($settings['date_align'], 'C'); ?>>Na střed</option>
+                            <option value="R" <?php selected($settings['date_align'], 'R'); ?>>Vpravo</option>
+                        </select>
+                    </td>
+                    <td><input type="color" name="date_color" id="date_color" value="<?php echo esc_attr($settings['date_color']); ?>"></td>
+                </tr>
+            </table>
+
+            <hr>
+            <p class="submit">
+                <input type="submit" name="save_settings" class="button button-primary" value="Uložit nastavení">
+            </p>
+        </form>
+    </div>
+    <?php
+}
+
 // Generování PDF
 function generate_discount_pdf($discount, $code, $valid_to) {
     require_once(ABSPATH . 'wp-content/plugins/discount-codes/fpdf/fpdf.php');
 
     // Vytvoření nového PDF dokumentu
     $pdf = new FPDF();
-    $pdf->AddPage();
     
-    // Nastavení barev
-    $pdf->SetTextColor(0, 0, 0);
-    $pdf->SetFillColor(255, 255, 255);
+    // Načtení obrázku pozadí
+    global $wpdb;
+    $settings_table = $wpdb->prefix . 'discount_codes_settings';
+    $background_image = $wpdb->get_var($wpdb->prepare(
+        "SELECT setting_value FROM $settings_table WHERE setting_key = %s",
+        'background_image'
+    ));
     
-    // Nastavení fontu Barlow
+    if ($background_image) {
+        // Získání cesty k obrázku
+        $upload_dir = wp_upload_dir();
+        $image_path = str_replace($upload_dir['baseurl'], $upload_dir['basedir'], $background_image);
+        
+        // Získání rozměrů obrázku
+        list($width, $height) = getimagesize($image_path);
+        
+        // Určení orientace stránky na základě poměru stran obrázku
+        $orientation = ($width > $height) ? 'L' : 'P';
+        
+        // Výpočet rozměrů stránky
+        if ($orientation == 'L') {
+            $page_width = ($width / $height) * 210;
+            $page_height = 210;
+        } else {
+            $page_width = 210;
+            $page_height = ($height / $width) * 210;
+        }
+        
+        // Vytvoření stránky s odpovídající orientací a rozměry
+        $pdf->AddPage($orientation, array($page_width, $page_height));
+        
+        // Umístění obrázku
+        $pdf->Image($background_image, 0, 0, $page_width, $page_height);
+    } else {
+        $pdf->AddPage();
+        $page_width = 210;
+        $page_height = 297;
+    }
+    
+    // Načtení nastavení textu
+    $settings = array();
+    $results = $wpdb->get_results("SELECT setting_key, setting_value FROM $settings_table");
+    foreach ($results as $row) {
+        $settings[$row->setting_key] = $row->setting_value;
+    }
+    
+    // Výchozí hodnoty
+    $defaults = array(
+        'discount_y' => '50',
+        'discount_color' => '#000000',
+        'discount_align' => 'C',
+        'code_y' => '70',
+        'code_color' => '#000000',
+        'code_align' => 'C',
+        'date_y' => '90',
+        'date_color' => '#000000',
+        'date_align' => 'C'
+    );
+    
+    $settings = wp_parse_args($settings, $defaults);
+    
+    // Převod barev z HEX na RGB
+    function hex2rgb($hex) {
+        $hex = str_replace('#', '', $hex);
+        if (strlen($hex) == 3) {
+            $r = hexdec(substr($hex, 0, 1) . substr($hex, 0, 1));
+            $g = hexdec(substr($hex, 1, 1) . substr($hex, 1, 1));
+            $b = hexdec(substr($hex, 2, 1) . substr($hex, 2, 1));
+        } else {
+            $r = hexdec(substr($hex, 0, 2));
+            $g = hexdec(substr($hex, 2, 2));
+            $b = hexdec(substr($hex, 4, 2));
+        }
+        return array($r, $g, $b);
+    }
+    $pdf->SetDrawColor(50, 50, 50); 
+
+    // Nastavení fontu
     $pdf->AddFont('Barlow', '', 'Barlow-Regular.php');
     $pdf->AddFont('Barlow', 'B', 'Barlow-Bold.php');
-    
+
+    // nastavení okrajů
+    $margin_left = 20;
+    $margin_right = 20;
+    $margin_top = 20;
+    $pdf->SetMargins($margin_left, $margin_top, $margin_right);
+
+    $cell_width = 255; // magick0 číslo - nemám ponětí proč zrovna 255, ale funguje to
+
     // Sleva
-    $pdf->SetFont('Barlow', 'B', 36);
-    $discount_cz = mb_convert_encoding($discount . ' CZK', 'windows-1252', 'UTF-8');
-    $pdf->Cell(0, 30, $discount_cz, 0, 1, 'C');
-    $pdf->Ln(10);
+    $text = $discount . ' CZK';
+    $pdf->SetFont('Barlow', 'B', 60);
+    $pdf->SetXY($margin_left, ($page_height * $settings['discount_y']) / 100);
+    list($r, $g, $b) = hex2rgb($settings['discount_color']);
+    $pdf->SetTextColor($r, $g, $b);
+    $pdf->Cell(255, 0, $text, 0, 1, $settings['discount_align']);
+
     
     // Kód
+    $text = $code;
     $pdf->SetFont('Barlow', 'B', 20);
-    $pdf->Cell(0, 20, $code, 0, 1, 'C');
-    $pdf->Ln(10);
+    list($r, $g, $b) = hex2rgb($settings['code_color']);
+    $pdf->SetTextColor($r, $g, $b);
+    $pdf->SetXY($margin_left, ($page_height * $settings['code_y']) / 100);
+    $pdf->Cell(255, 0, $text, 0, 1, $settings['code_align']);
     
     // Platnost
-    $pdf->SetFont('Barlow', '', 14);
-    $pdf->Cell(0, 10, date('d. m. Y', strtotime($valid_to)), 0, 1, 'C');
+    $text ='do ' . date('d. m. Y', strtotime($valid_to));
+    $pdf->SetFont('Barlow', 'B', 20);
+    list($r, $g, $b) = hex2rgb($settings['date_color']);
+    $pdf->SetTextColor($r, $g, $b);
+    $pdf->SetXY($margin_left, ($page_height * $settings['date_y']) / 100);
+    $pdf->Cell(255, 0, $text, 0, 1, $settings['date_align']);
     
-    
+
     // Vrácení PDF jako string
     return $pdf->Output('', 'S');
 }
