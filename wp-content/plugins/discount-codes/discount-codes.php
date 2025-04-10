@@ -16,6 +16,7 @@ function discount_codes_activate() {
     global $wpdb;
     $table_name = $wpdb->prefix . 'discount_codes';
     $settings_table = $wpdb->prefix . 'discount_codes_settings';
+    $orders_table = $wpdb->prefix . 'discount_codes_orders';
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE IF NOT EXISTS $table_name (
@@ -35,9 +36,22 @@ function discount_codes_activate() {
         PRIMARY KEY  (id)
     ) $charset_collate;";
 
+    $sql_orders = "CREATE TABLE IF NOT EXISTS $orders_table (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        name varchar(100) NOT NULL,
+        email varchar(100) NOT NULL,
+        phone varchar(20) NOT NULL,
+        course varchar(100) NOT NULL,
+        number_of_persons int NOT NULL DEFAULT 1,
+        discount_code varchar(20),
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
     dbDelta($sql_settings);
+    dbDelta($sql_orders);
 }
 register_activation_hook(__FILE__, 'discount_codes_activate');
 
@@ -60,6 +74,15 @@ function discount_codes_menu() {
         'manage_options',
         'discount-codes-settings',
         'discount_codes_settings_page'
+    );
+
+    add_submenu_page(
+        'discount-codes',
+        'Objednávky',
+        'Objednávky',
+        'manage_options',
+        'discount-codes-orders',
+        'discount_codes_orders_page'
     );
 }
 add_action('admin_menu', 'discount_codes_menu');
@@ -102,6 +125,38 @@ function generate_discount_code() {
     } while (!is_discount_code_unique($code));
     
     return $code;
+}
+
+// Hlavní stránka administrace
+function discount_codes_page() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'discount_codes';
+
+    // Zpracování formuláře pro přidání nového kódu
+    if (isset($_POST['add_discount_code']) && check_admin_referer('add_discount_code')) {
+        $discount = sanitize_text_field($_POST['discount']);
+        $code = generate_discount_code();
+        $months = intval($_POST['valid_months']);
+        $valid_to = date('Y-m-d', strtotime("+$months months"));
+        $status = 'active';
+
+        $wpdb->insert(
+            $table_name,
+            array(
+                'discount' => $discount,
+                'code' => $code,
+                'valid_to' => $valid_to,
+                'status' => $status
+            ),
+            array('%s', '%s', '%s', '%s')
+        );
+    }
+
+    // Získání všech kódů
+    $codes = $wpdb->get_results("SELECT * FROM $table_name ORDER BY created_at DESC");
+    
+    // Načtení šablony
+    include plugin_dir_path(__FILE__) . 'templates/admin-vouchers.php';
 }
 
 // Stránka nastavení
@@ -191,100 +246,9 @@ function discount_codes_settings_page() {
     );
     
     $settings = wp_parse_args($settings, $defaults);
-    ?>
-    <div class="wrap">
-        <h1>Nastavení slevových kupónů</h1>
-        
-        <?php settings_errors('discount_codes_settings'); ?>
-        
-        <form method="post" enctype="multipart/form-data">
-            <?php wp_nonce_field('save_discount_codes_settings'); ?>
-            
-            <h2>Pozadí PDF</h2>
-            <table class="form-table">
-                <tr>
-                    <th scope="row"><label for="background_image">Obrázek pozadí</label></th>
-                    <td>
-                        <input type="file" name="background_image" id="background_image" accept="image/jpeg,image/png">
-                        <p class="description">Podporované formáty: JPG, PNG</p>
-                        <?php if (!empty($settings['background_image'])) : ?>
-                            <p class="description">Aktuální obrázek:</p>
-                            <img src="<?php echo esc_url($settings['background_image']); ?>" style="max-width: 300px; margin-top: 10px;">
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            </table>
-            
-            <hr>
-            <h3>Sleva - nastavení textu</h3>
-            <table>
-                <tr>
-                    <th scope="col"><label for="discount_y">Y pozice (%)</label></th>
-                    <th scope="col"><label for="discount_align">Zarovnání</label></th>
-                    <th scope="col"><label for="discount_color">Barva</label></th>
-                </tr>
-                <tr>
-                    <td><input type="number" name="discount_y" id="discount_y" value="<?php echo esc_attr($settings['discount_y']); ?>" min="0" max="100"></td>
-                    <td>
-                        <select name="discount_align" id="discount_align">
-                            <option value="L" <?php selected($settings['discount_align'], 'L'); ?>>Vlevo</option>
-                            <option value="C" <?php selected($settings['discount_align'], 'C'); ?>>Na střed</option>
-                            <option value="R" <?php selected($settings['discount_align'], 'R'); ?>>Vpravo</option>
-                        </select>
-                    </td>
-                    <td><input type="color" name="discount_color" id="discount_color" value="<?php echo esc_attr($settings['discount_color']); ?>"></td>
-                </tr>
-            </table>
-
-            <hr>
-            <h3>Kód - nastavení textu</h3>
-            <table>    
-                <tr>
-                    <th scope="col"><label for="code_y">Y pozice (%)</label></th>
-                    <th scope="col"><label for="code_align">Zarovnání</label></th>
-                    <th scope="col"><label for="code_color">Barva</label></th>
-                </tr>
-                <tr>
-                    <td><input type="number" name="code_y" id="code_y" value="<?php echo esc_attr($settings['code_y']); ?>" min="0" max="100"></td>    
-                    <td>
-                        <select name="code_align" id="code_align">
-                            <option value="L" <?php selected($settings['code_align'], 'L'); ?>>Vlevo</option>
-                            <option value="C" <?php selected($settings['code_align'], 'C'); ?>>Na střed</option>
-                            <option value="R" <?php selected($settings['code_align'], 'R'); ?>>Vpravo</option>
-                        </select>
-                    </td>
-                    <td><input type="color" name="code_color" id="code_color" value="<?php echo esc_attr($settings['code_color']); ?>"></td>
-                </tr>
-            </table>
-
-            <hr>
-            <h3>Datum platnosti - nastavení textu</h3>
-            <table>    
-                <tr>
-                    <th scope="col"><label for="date_y">Y pozice (%)</label></th>
-                    <th scope="col"><label for="date_align">Zarovnání</label></th>
-                    <th scope="col"><label for="date_color">Barva</label></th>
-                </tr>
-                <tr>
-                    <td><input type="number" name="date_y" id="date_y" value="<?php echo esc_attr($settings['date_y']); ?>" min="0" max="100"></td>
-                    <td>
-                        <select name="date_align" id="date_align">
-                            <option value="L" <?php selected($settings['date_align'], 'L'); ?>>Vlevo</option>
-                            <option value="C" <?php selected($settings['date_align'], 'C'); ?>>Na střed</option>
-                            <option value="R" <?php selected($settings['date_align'], 'R'); ?>>Vpravo</option>
-                        </select>
-                    </td>
-                    <td><input type="color" name="date_color" id="date_color" value="<?php echo esc_attr($settings['date_color']); ?>"></td>
-                </tr>
-            </table>
-
-            <hr>
-            <p class="submit">
-                <input type="submit" name="save_settings" class="button button-primary" value="Uložit nastavení">
-            </p>
-        </form>
-    </div>
-    <?php
+    
+    // Načtení šablony
+    include plugin_dir_path(__FILE__) . 'templates/admin-settings.php';
 }
 
 // Generování PDF
@@ -459,94 +423,83 @@ function discount_codes_template_redirect() {
 }
 add_action('template_redirect', 'discount_codes_template_redirect');
 
-// Hlavní stránka administrace
-function discount_codes_page() {
+// Stránka s objednávkami
+function discount_codes_orders_page() {
     global $wpdb;
-    $table_name = $wpdb->prefix . 'discount_codes';
+    $orders_table = $wpdb->prefix . 'discount_codes_orders';
+    
+    // Získání všech objednávek
+    $orders = $wpdb->get_results("SELECT * FROM $orders_table ORDER BY created_at DESC");
+    
+    // Načtení šablony
+    include plugin_dir_path(__FILE__) . 'templates/admin-orders.php';
+}
 
-    // Zpracování formuláře pro přidání nového kódu
-    if (isset($_POST['add_discount_code']) && check_admin_referer('add_discount_code')) {
-        $discount = sanitize_text_field($_POST['discount']);
-        $code = generate_discount_code();
-        $months = intval($_POST['valid_months']);
-        $valid_to = date('Y-m-d', strtotime("+$months months"));
-        $status = 'active';
+// Shortcode pro objednávkový formulář
+function discount_codes_order_form_shortcode() {
+    ob_start();
+    
+    // Zpracování formuláře
+    if (isset($_POST['submit_order'])) {
+        if (!wp_verify_nonce($_POST['order_nonce'], 'submit_order')) {
+            wp_die('Neplatný požadavek');
+        }
 
-        $wpdb->insert(
-            $table_name,
-            array(
-                'discount' => $discount,
-                'code' => $code,
-                'valid_to' => $valid_to,
-                'status' => $status
-            ),
-            array('%s', '%s', '%s', '%s')
-        );
+        $name = sanitize_text_field($_POST['name']);
+        $email = sanitize_email($_POST['email']);
+        $phone = sanitize_text_field($_POST['phone']);
+        $course = sanitize_text_field($_POST['course']);
+        $number_of_persons = intval($_POST['number_of_persons']);
+        $discount_code = sanitize_text_field($_POST['discount_code']);
+
+        if (empty($name) || empty($email) || empty($phone) || empty($course) || $number_of_persons < 1) {
+            $error = 'Prosím vyplňte všechna povinná pole';
+        } else {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'discount_codes_orders';
+
+            // Kontrola slevového kódu
+            $code_table = $wpdb->prefix . 'discount_codes';
+            $code = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $code_table WHERE code = %s AND status = 'active'",
+                $discount_code
+            ));
+
+            if (!empty($discount_code) && !$code) {
+                $error = 'Neplatný slevový kód';
+            } else {
+                // Uložení objednávky
+                $wpdb->insert(
+                    $table_name,
+                    array(
+                        'name' => $name,
+                        'email' => $email,
+                        'phone' => $phone,
+                        'course' => $course,
+                        'number_of_persons' => $number_of_persons,
+                        'discount_code' => $discount_code,
+                        'order_date' => current_time('mysql')
+                    ),
+                    array('%s', '%s', '%s', '%s', '%d', '%s', '%s')
+                );
+
+                // Aktualizace stavu slevového kódu
+                if ($code) {
+                    $wpdb->update(
+                        $code_table,
+                        array('status' => 'redeemed'),
+                        array('id' => $code->id)
+                    );
+                }
+
+                $success = 'Objednávka byla úspěšně odeslána';
+            }
+        }
     }
-
-    // Získání všech kódů
-    $codes = $wpdb->get_results("SELECT * FROM $table_name ORDER BY created_at DESC");
-    ?>
-    <div class="wrap">
-        <h1>Slevové kupóny</h1>
-
-        <h2>Přidat nový kupón</h2>
-        <form method="post" action="">
-            <?php wp_nonce_field('add_discount_code'); ?>
-            <table>
-                <tr>
-                    <th scope="col" class="textleft"><label for="discount">Sleva (Kč)</label></th>
-                    <th scope="col" class="textleft"><label for="valid_months">Platnost</label></th>
-                    <th scope="col"> </th>
-                </tr>
-                <tr>
-                    <td><input type="text" value="500" name="discount" id="discount" class="regular-text" required></td>
-                    <td>
-                        <select name="valid_months" id="valid_months" required>
-                            <option value="1">1 měsíc</option>
-                            <option value="3">3 měsíce</option>
-                            <option value="6">6 měsíců</option>
-                            <option value="12" selected>12 měsíců</option>
-                        </select>
-                    </td>
-                    <td class="submit">
-                        <input type="submit" name="add_discount_code" class="button button-primary" value="Přidat kupón">
-                    </td>
-                </tr>
-            </table>
-            
-        </form>
-
-        <h2>Seznam kupónů</h2>
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Sleva</th>
-                    <th>Kód</th>
-                    <th>Platný do</th>
-                    <th>Stav</th>
-                    <th>Akce</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($codes as $code) : ?>
-                    <tr>
-                        <td><?php echo esc_html($code->id); ?></td>
-                        <td><?php echo esc_html($code->discount); ?></td>
-                        <td><?php echo esc_html($code->code); ?></td>
-                        <td><?php echo date('d. m. Y', strtotime($code->valid_to)); ?></td>
-                        <td><?php echo esc_html($code->status); ?></td>
-                        <td>
-                            <a href="<?php echo esc_url(home_url('/discount-codes/pdf/' . $code->id . '/')); ?>" 
-                               class="button button-secondary" target="_blank">
-                                Stáhnout PDF
-                            </a>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-    <?php
-} 
+    
+    // Načtení šablony
+    include plugin_dir_path(__FILE__) . 'templates/order-form.php';
+    
+    return ob_get_clean();
+}
+add_shortcode('discount_codes_order_form', 'discount_codes_order_form_shortcode'); 
