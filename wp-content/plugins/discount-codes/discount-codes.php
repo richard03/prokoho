@@ -86,6 +86,88 @@ function generate_discount_code() {
     return $code;
 }
 
+// Generování PDF
+function generate_discount_pdf($discount, $code, $valid_to) {
+    require_once(ABSPATH . 'wp-content/plugins/discount-codes/fpdf/fpdf.php');
+
+    // Vytvoření nového PDF dokumentu
+    $pdf = new FPDF();
+    $pdf->AddPage();
+    
+    // Nastavení barev
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetFillColor(255, 255, 255);
+    
+    // Nastavení fontu Barlow
+    $pdf->AddFont('Barlow', '', 'Barlow-Regular.php');
+    $pdf->AddFont('Barlow', 'B', 'Barlow-Bold.php');
+    
+    // Sleva
+    $pdf->SetFont('Barlow', 'B', 36);
+    $discount_cz = mb_convert_encoding($discount . ' CZK', 'windows-1252', 'UTF-8');
+    $pdf->Cell(0, 30, $discount_cz, 0, 1, 'C');
+    $pdf->Ln(10);
+    
+    // Kód
+    $pdf->SetFont('Barlow', 'B', 20);
+    $pdf->Cell(0, 20, $code, 0, 1, 'C');
+    $pdf->Ln(10);
+    
+    // Platnost
+    $pdf->SetFont('Barlow', '', 14);
+    $pdf->Cell(0, 10, date('d. m. Y', strtotime($valid_to)), 0, 1, 'C');
+    
+    
+    // Vrácení PDF jako string
+    return $pdf->Output('', 'S');
+}
+
+// Přidání endpointu pro generování PDF
+function discount_codes_add_endpoint() {
+    add_rewrite_rule(
+        '^discount-codes/pdf/([0-9]+)/?$',
+        'index.php?discount_code_pdf=$matches[1]',
+        'top'
+    );
+}
+add_action('init', 'discount_codes_add_endpoint');
+
+// Registrace query var
+function discount_codes_register_query_var($vars) {
+    $vars[] = 'discount_code_pdf';
+    return $vars;
+}
+add_filter('query_vars', 'discount_codes_register_query_var');
+
+// Zpracování požadavku na PDF
+function discount_codes_template_redirect() {
+    $pdf_id = get_query_var('discount_code_pdf');
+    if ($pdf_id) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'discount_codes';
+        $code = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_name WHERE id = %d",
+            $pdf_id
+        ));
+
+        if ($code) {
+            $pdf_content = generate_discount_pdf($code->discount, $code->code, $code->valid_to);
+            
+            // Nastavení hlaviček pro stažení PDF
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="slevovy_kupon_' . $code->code . '.pdf"');
+            header('Content-Length: ' . strlen($pdf_content));
+            header('Cache-Control: no-cache, no-store, must-revalidate');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+            
+            echo $pdf_content;
+            exit;
+        }
+    }
+}
+add_action('template_redirect', 'discount_codes_template_redirect');
+
 // Hlavní stránka administrace
 function discount_codes_page() {
     global $wpdb;
@@ -111,20 +193,6 @@ function discount_codes_page() {
         );
     }
 
-    // Zpracování změny stavu
-    if (isset($_POST['change_status']) && check_admin_referer('change_status')) {
-        $id = intval($_POST['id']);
-        $status = sanitize_text_field($_POST['status']);
-        
-        $wpdb->update(
-            $table_name,
-            array('status' => $status),
-            array('id' => $id),
-            array('%s'),
-            array('%d')
-        );
-    }
-
     // Získání všech kódů
     $codes = $wpdb->get_results("SELECT * FROM $table_name ORDER BY created_at DESC");
     ?>
@@ -138,13 +206,10 @@ function discount_codes_page() {
                 <tr>
                     <th scope="col" class="textleft"><label for="discount">Sleva (Kč)</label></th>
                     <th scope="col" class="textleft"><label for="valid_months">Platnost</label></th>
-                    <th>
-
+                    <th scope="col"> </th>
                 </tr>
                 <tr>
-                    <td>
-                        <input type="text" name="discount" value="500" id="discount" class="regular-text" required>
-                    </td>
+                    <td><input type="text" value="500" name="discount" id="discount" class="regular-text" required></td>
                     <td>
                         <select name="valid_months" id="valid_months" required>
                             <option value="1">1 měsíc</option>
@@ -153,11 +218,12 @@ function discount_codes_page() {
                             <option value="12" selected>12 měsíců</option>
                         </select>
                     </td>
-                    <td>
+                    <td class="submit">
                         <input type="submit" name="add_discount_code" class="button button-primary" value="Přidat kupón">
                     </td>
                 </tr>
             </table>
+            
         </form>
 
         <h2>Seznam kupónů</h2>
@@ -169,6 +235,7 @@ function discount_codes_page() {
                     <th>Kód</th>
                     <th>Platný do</th>
                     <th>Stav</th>
+                    <th>Akce</th>
                 </tr>
             </thead>
             <tbody>
@@ -177,8 +244,14 @@ function discount_codes_page() {
                         <td><?php echo esc_html($code->id); ?></td>
                         <td><?php echo esc_html($code->discount); ?></td>
                         <td><?php echo esc_html($code->code); ?></td>
-                        <td><?php echo esc_html($code->valid_to); ?></td>
+                        <td><?php echo date('d. m. Y', strtotime($code->valid_to)); ?></td>
                         <td><?php echo esc_html($code->status); ?></td>
+                        <td>
+                            <a href="<?php echo esc_url(home_url('/discount-codes/pdf/' . $code->id . '/')); ?>" 
+                               class="button button-secondary" target="_blank">
+                                Stáhnout PDF
+                            </a>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
