@@ -4,12 +4,12 @@
  */
 ?>
 <div class="wrap">
-    <h1>Nastavení slevových kupónů</h1>
+    <h1>Nastavení PDF</h1>
     
-    <?php settings_errors('discount_codes_settings'); ?>
+    <?php settings_errors('pdf_settings'); ?>
     
     <form method="post" enctype="multipart/form-data">
-        <?php wp_nonce_field('save_discount_codes_settings'); ?>
+        <?php wp_nonce_field('save_pdf_settings'); ?>
         
         <h2>Pozadí PDF</h2>
         <table class="form-table">

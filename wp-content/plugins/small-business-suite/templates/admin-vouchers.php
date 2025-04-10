@@ -8,7 +8,7 @@
 
     <h2>Přidat nový kupón</h2>
     <form method="post" action="">
-        <?php wp_nonce_field('add_discount_code'); ?>
+        <?php wp_nonce_field('add_voucher'); ?>
         <table>
             <tr>
                 <th scope="col" class="textleft"><label for="discount">Sleva (Kč)</label></th>
@@ -45,15 +45,15 @@
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($codes as $code) : ?>
+            <?php foreach ($vouchers as $voucher) : ?>
                 <tr>
-                    <td><?php echo esc_html($code->id); ?></td>
-                    <td><?php echo esc_html($code->discount); ?></td>
-                    <td><?php echo esc_html($code->code); ?></td>
-                    <td><?php echo date('d. m. Y', strtotime($code->valid_to)); ?></td>
-                    <td><?php echo esc_html($code->status); ?></td>
+                    <td><?php echo esc_html($voucher->id); ?></td>
+                    <td><?php echo esc_html($voucher->discount); ?></td>
+                    <td><?php echo esc_html($voucher->code); ?></td>
+                    <td><?php echo date('d. m. Y', strtotime($voucher->valid_to)); ?></td>
+                    <td><?php echo esc_html($voucher->status); ?></td>
                     <td>
-                        <a href="<?php echo esc_url(home_url('/discount-codes/pdf/' . $code->id . '/')); ?>" 
+                        <a href="<?php echo esc_url(home_url('/small-business-suite/pdf/' . $voucher->id . '/')); ?>" 
                            class="button button-secondary" target="_blank">
                             Stáhnout PDF
                         </a>
