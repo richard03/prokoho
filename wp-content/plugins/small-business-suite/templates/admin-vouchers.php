@@ -6,6 +6,8 @@
 <div class="wrap">
     <h1>Slevové kupóny</h1>
 
+    <?php settings_errors('small_business_suite_messages'); ?>
+
     <h2>Přidat nový kupón</h2>
     <form method="post" action="">
         <?php wp_nonce_field('add_voucher'); ?>
@@ -26,7 +28,7 @@
                     </select>
                 </td>
                 <td class="submit">
-                    <input type="submit" name="add_discount_code" class="button button-primary" value="Přidat kupón">
+                    <input type="submit" name="add_voucher" class="button button-primary" value="Přidat kupón">
                 </td>
             </tr>
         </table>

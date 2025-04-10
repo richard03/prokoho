@@ -11,8 +11,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-include plugin_dir_path(__FILE__) . 'functions/vouchers.php';
 include plugin_dir_path(__FILE__) . 'functions/orders.php';
+include plugin_dir_path(__FILE__) . 'functions/vouchers.php';
 include plugin_dir_path(__FILE__) . 'functions/pdf-settings.php';
 
 
@@ -72,7 +72,31 @@ add_action('admin_menu', 'small_business_suite_menu');
 
 
 // Administrace pluginu - hlavní stránka
-function small_business_suite_page() {  
+function small_business_suite_page() {
+    // Zpracování resetu dat
+    if (isset($_POST['reset_data']) && check_admin_referer('reset_plugin_data')) {
+        global $wpdb;
+        
+        // Smazání tabulek
+        $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}small_business_suite_vouchers");
+        $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}small_business_suite_orders");
+        $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}small_business_suite_settings");
+        
+        // Vytvoření nových tabulek
+        small_business_suite_activate();
+        
+        // Přidání zprávy o úspěchu
+        add_settings_error(
+            'small_business_suite_messages',
+            'reset_success',
+            'Data byla úspěšně smazána a tabulky byly znovu vytvořeny.',
+            'updated'
+        );
+    }
+    
+    // Zobrazení chybových zpráv
+    settings_errors('small_business_suite_messages');
+    
     // Načtení šablony
     include plugin_dir_path(__FILE__) . 'templates/admin.php';
 }
@@ -90,6 +114,45 @@ function small_business_suite_pdf_settings_page() {
 
 // Administrace pluginu - slevové kupóny
 function small_business_suite_vouchers_page() {
+    
+    // Zpracování formuláře pro přidání nového slevového kupónu
+    if (isset($_POST['add_voucher']) && check_admin_referer('add_voucher')) {
+        $discount = sanitize_text_field($_POST['discount']);
+        $code = generate_discount_code();
+        $months = intval($_POST['valid_months']);
+        $valid_to = date('Y-m-d', strtotime("+$months months"));
+        $status = 'active';
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'small_business_suite_vouchers';
+
+        $result = $wpdb->insert(
+            $table_name,
+            array(
+                'discount' => $discount,
+                'code' => $code,
+                'valid_to' => $valid_to,
+                'status' => $status
+            ),
+            array('%s', '%s', '%s', '%s')
+        );
+        if ($result) {
+            add_settings_error(
+                'small_business_suite_messages',
+                'voucher_added',
+                'Kupón byl úspěšně přidán.',
+                'updated'
+            );
+        } else {
+            add_settings_error(
+                'small_business_suite_messages',
+                'voucher_error',
+                'Nepodařilo se přidat kupón. Zkuste to prosím znovu.',
+                'error'
+            );
+        }
+    }
+
     $vouchers = get_vouchers();
     include plugin_dir_path(__FILE__) . 'templates/admin-vouchers.php';
 }
@@ -124,7 +187,7 @@ function small_business_suite_order_form_shortcode() {
         $phone = sanitize_text_field($_POST['phone']);
         $course = sanitize_text_field($_POST['course']);
         $number_of_persons = intval($_POST['number_of_persons']);
-        $discount_code = sanitize_text_field($_POST['discount_code']);
+        $voucher = sanitize_text_field($_POST['voucher']);
 
         if (empty($name) || empty($email) || empty($phone) || empty($course) || $number_of_persons < 1) {
             $error = 'Prosím vyplňte všechna povinná pole';
@@ -133,13 +196,13 @@ function small_business_suite_order_form_shortcode() {
             $table_name = $wpdb->prefix . 'small_business_suite_orders';
 
             // Kontrola slevového kódu
-            $code_table = $wpdb->prefix . 'small_business_suite_codes';
-            $code = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM $code_table WHERE code = %s AND status = 'active'",
-                $discount_code
+            $voucher_table = $wpdb->prefix . 'small_business_suite_vouchers';
+            $voucher_data = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $voucher_table WHERE voucher = %s AND status = 'active'",
+                $voucher
             ));
 
-            if (!empty($discount_code) && !$code) {
+            if (!empty($voucher) && !$voucher_data) {
                 $error = 'Neplatný slevový kód';
             } else {
                 // Uložení objednávky
@@ -151,18 +214,18 @@ function small_business_suite_order_form_shortcode() {
                         'phone' => $phone,
                         'course' => $course,
                         'number_of_persons' => $number_of_persons,
-                        'discount_code' => $discount_code,
+                        'voucher' => $voucher,
                         'order_date' => current_time('mysql')
                     ),
                     array('%s', '%s', '%s', '%s', '%d', '%s', '%s')
                 );
 
                 // Aktualizace stavu slevového kódu
-                if ($code) {
+                if ($voucher_data) {
                     $wpdb->update(
-                        $code_table,
+                        $voucher_table,
                         array('status' => 'redeemed'),
-                        array('id' => $code->id)
+                        array('id' => $voucher_data->id)
                     );
                 }
 

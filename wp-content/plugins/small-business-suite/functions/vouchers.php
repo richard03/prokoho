@@ -30,27 +30,8 @@ function vouchers_db_init() {
 // Administrace pluginu - slevové kupóny
 function get_vouchers() {
     global $wpdb;
-    $table_name = $wpdb->prefix . 'small_business_suite_codes';
+    $table_name = $wpdb->prefix . 'small_business_suite_vouchers';
 
-    // Zpracování formuláře pro přidání nového slevového kupónu
-    if (isset($_POST['add_voucher']) && check_admin_referer('add_voucher')) {
-        $discount = sanitize_text_field($_POST['discount']);
-        $code = generate_discount_code();
-        $months = intval($_POST['valid_months']);
-        $valid_to = date('Y-m-d', strtotime("+$months months"));
-        $status = 'active';
-
-        $wpdb->insert(
-            $table_name,
-            array(
-                'discount' => $discount,
-                'code' => $code,
-                'valid_to' => $valid_to,
-                'status' => $status
-            ),
-            array('%s', '%s', '%s', '%s')
-        );
-    }
 
     // Získání všech kuponů
     $vouchers = $wpdb->get_results("SELECT * FROM $table_name ORDER BY created_at DESC");
@@ -65,7 +46,7 @@ function get_vouchers() {
 // Kontrola unikátnosti kódu
 function is_discount_code_unique($code) {
     global $wpdb;
-    $table_name = $wpdb->prefix . 'small_business_suite_codes';
+    $table_name = $wpdb->prefix . 'small_business_suite_vouchers';
     $existing_code = $wpdb->get_var($wpdb->prepare(
         "SELECT code FROM $table_name WHERE code = %s",
         $code
@@ -76,7 +57,7 @@ function is_discount_code_unique($code) {
 // Generování náhodného kódu
 function generate_discount_code() {
     global $wpdb;
-    $table_name = $wpdb->prefix . 'small_business_suite_codes';
+    $table_name = $wpdb->prefix . 'small_business_suite_vouchers';
     $max_attempts = 100; // Maximální počet pokusů pro generování unikátního kódu
     $attempts = 0;
     
@@ -105,7 +86,7 @@ function generate_discount_code() {
 
 
 // Generování PDF
-function generate_discount_pdf($discount, $code, $valid_to) {
+function generate_voucher_pdf($discount, $code, $valid_to) {
     require_once(ABSPATH . 'wp-content/plugins/small-business-suite/fpdf/fpdf.php');
 
     // Vytvoření nového PDF dokumentu
@@ -234,34 +215,34 @@ function generate_discount_pdf($discount, $code, $valid_to) {
 function pdf_add_endpoint() {
     add_rewrite_rule(
         '^small-business-suite/pdf/([0-9]+)/?$',
-        'index.php?discount_code_pdf=$matches[1]',
+        'index.php?voucher_pdf=$matches[1]',
         'top'
     );
 }
 
 // Registrace query var
 function pdf_register_query_var($vars) {
-    $vars[] = 'discount_code_pdf';
+    $vars[] = 'voucher_pdf';
     return $vars;
 }
 
 // Zpracování požadavku na PDF
 function pdf_template_redirect() {
-    $pdf_id = get_query_var('discount_code_pdf');
+    $pdf_id = get_query_var('voucher_pdf');
     if ($pdf_id) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'small_business_suite_codes';
-        $code = $wpdb->get_row($wpdb->prepare(
+        $table_name = $wpdb->prefix . 'small_business_suite_vouchers';
+        $voucher = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM $table_name WHERE id = %d",
             $pdf_id
         ));
 
-        if ($code) {
-            $pdf_content = generate_discount_pdf($code->discount, $code->code, $code->valid_to);
+        if ($voucher) {
+            $pdf_content = generate_voucher_pdf($voucher->discount, $voucher->voucher, $voucher->valid_to);
             
             // Nastavení hlaviček pro stažení PDF
             header('Content-Type: application/pdf');
-            header('Content-Disposition: attachment; filename="slevovy_kupon_' . $code->code . '.pdf"');
+            header('Content-Disposition: attachment; filename="slevovy_kupon_' . $voucher->voucher . '.pdf"');
             header('Content-Length: ' . strlen($pdf_content));
             header('Cache-Control: no-cache, no-store, must-revalidate');
             header('Pragma: no-cache');
