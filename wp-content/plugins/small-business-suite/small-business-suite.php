@@ -108,6 +108,15 @@ function small_business_suite_orders_page() {
 
 // Administrace pluginu - stránka nastavení
 function small_business_suite_pdf_settings_page() {
+    // Zpracování formuláře
+    if (isset($_POST['save_settings'])) {
+        if (check_admin_referer('small_business_suite_pdf_settings')) {
+            save_pdf_settings();
+        } else {
+            add_settings_error('pdf_settings', 'settings_error', 'Došlo k chybě při ukládání nastavení.', 'error');
+        }
+    }
+
     $settings = get_pdf_settings();
     include plugin_dir_path(__FILE__) . 'templates/admin-pdf-settings.php';
 }
@@ -158,6 +167,156 @@ function small_business_suite_vouchers_page() {
 }
 
 
+
+
+
+// Generování PDF
+function generate_voucher_pdf($discount, $code, $valid_to) {
+    require_once(ABSPATH . 'wp-content/plugins/small-business-suite/fpdf/fpdf.php');
+
+    // Vytvoření nového PDF dokumentu
+    $pdf = new FPDF();
+    
+    // Načtení obrázku pozadí
+    global $wpdb;
+    $settings_table = $wpdb->prefix . 'small_business_suite_pdf_settings';
+    $background_image = $wpdb->get_var($wpdb->prepare(
+        "SELECT setting_value FROM $settings_table WHERE setting_key = %s",
+        'background_image'
+    ));
+    
+    if ($background_image) {
+        // Získání cesty k obrázku
+        $upload_dir = wp_upload_dir();
+        $image_path = str_replace($upload_dir['baseurl'], $upload_dir['basedir'], $background_image);
+        
+        // Získání rozměrů obrázku
+        list($width, $height) = getimagesize($image_path);
+        
+        // Určení orientace stránky na základě poměru stran obrázku
+        $orientation = ($width > $height) ? 'L' : 'P';
+        
+        // Výpočet rozměrů stránky
+        if ($orientation == 'L') {
+            $page_width = ($width / $height) * 210;
+            $page_height = 210;
+        } else {
+            $page_width = 210;
+            $page_height = ($height / $width) * 210;
+        }
+        
+        // Vytvoření stránky s odpovídající orientací a rozměry
+        $pdf->AddPage($orientation, array($page_width, $page_height));
+        
+        // Umístění obrázku
+        $pdf->Image($background_image, 0, 0, $page_width, $page_height);
+    } else {
+        $pdf->AddPage();
+        $page_width = 210;
+        $page_height = 297;
+    }
+    
+    // Načtení nastavení textu
+    $settings = array();
+    $results = $wpdb->get_results("SELECT setting_key, setting_value FROM $settings_table");
+    foreach ($results as $row) {
+        $settings[$row->setting_key] = $row->setting_value;
+    }
+    
+    // Výchozí hodnoty
+    $defaults = array(
+        'discount_y' => '50',
+        'discount_color' => '#000000',
+        'discount_align' => 'C',
+        'code_y' => '70',
+        'code_color' => '#000000',
+        'code_align' => 'C',
+        'date_y' => '90',
+        'date_color' => '#000000',
+        'date_align' => 'C'
+    );
+    
+    $settings = wp_parse_args($settings, $defaults);
+    
+    $pdf->SetDrawColor(50, 50, 50); 
+
+    // Nastavení fontu
+    $pdf->AddFont('Barlow', '', 'Barlow-Regular.php');
+    $pdf->AddFont('Barlow', 'B', 'Barlow-Bold.php');
+
+    // nastavení okrajů
+    $margin_left = 20;
+    $margin_right = 20;
+    $margin_top = 20;
+    $pdf->SetMargins($margin_left, $margin_top, $margin_right);
+
+    $cell_width = 255; // magicke cislo - odpovida sirce stranky bez okraju
+
+    // Sleva
+    $text = $discount . ' CZK';
+    $pdf->SetFont('Barlow', 'B', 60);
+    $pdf->SetXY($margin_left, ($page_height * $settings['discount_y']) / 100);
+    list($r, $g, $b) = hex2rgb($settings['discount_color']);
+    $pdf->SetTextColor($r, $g, $b);
+    $pdf->Cell($cell_width, 0, $text, 0, 1, $settings['discount_align']);
+
+    
+    // Kód
+    $text = $code;
+    $pdf->SetFont('Barlow', 'B', 20);
+    list($r, $g, $b) = hex2rgb($settings['code_color']);
+    $pdf->SetTextColor($r, $g, $b);
+    $pdf->SetXY($margin_left, ($page_height * $settings['code_y']) / 100);
+    $pdf->Cell($cell_width, 0, $text, 0, 1, $settings['code_align']);
+    
+    // Platnost
+    $text ='do ' . date('d. m. Y', strtotime($valid_to));
+    $pdf->SetFont('Barlow', 'B', 20);
+    list($r, $g, $b) = hex2rgb($settings['date_color']);
+    $pdf->SetTextColor($r, $g, $b);
+    $pdf->SetXY($margin_left, ($page_height * $settings['date_y']) / 100);
+    $pdf->Cell($cell_width, 0, $text, 0, 1, $settings['date_align']);
+    
+
+    // Vrácení PDF jako string
+    return $pdf->Output('', 'S');
+}
+
+
+
+// Zpracování požadavku na PDF
+function pdf_template_redirect() {
+    $pdf_id = get_query_var('discount_voucher_pdf');
+    error_log('PDF endpoint: Checking template redirect');
+    $pdf_id = get_query_var('discount_voucher_pdf');
+    if ($pdf_id) {
+        error_log('PDF endpoint: Found PDF ID: ' . $pdf_id);
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'small_business_suite_vouchers';
+        $voucher = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_name WHERE id = %d",
+            $pdf_id
+        ));
+ 
+        if ($voucher) {
+            error_log('PDF endpoint: Found voucher: ' . $voucher->code);
+            $pdf_content = generate_voucher_pdf($voucher->discount, $voucher->code, $voucher->valid_to);
+            // Nastavení hlaviček pro stažení PDF
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="slevovy_kupon_' . $voucher->code . '.pdf"');
+            header('Content-Length: ' . strlen($pdf_content));
+            header('Cache-Control: no-cache, no-store, must-revalidate');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+            
+            echo $pdf_content;
+            exit;
+        } else {
+            error_log('PDF endpoint: Voucher not found for ID: ' . $pdf_id);
+        }
+    }
+    
+}
 
 
 
@@ -239,4 +398,5 @@ function small_business_suite_order_form_shortcode() {
     
     return ob_get_clean();
 }
-add_shortcode('small_business_suite_order_form', 'small_business_suite_order_form_shortcode'); 
+add_shortcode('small_business_suite_order_form', 'small_business_suite_order_form_shortcode');
+

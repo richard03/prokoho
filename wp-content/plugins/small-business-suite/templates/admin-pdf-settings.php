@@ -2,6 +2,9 @@
 /**
  * Template for the settings page
  */
+    if (!defined('ABSPATH')) {
+        exit;
+    }
 ?>
 <div class="wrap">
     <h1>Nastavení PDF</h1>
@@ -9,7 +12,7 @@
     <?php settings_errors('pdf_settings'); ?>
     
     <form method="post" enctype="multipart/form-data">
-        <?php wp_nonce_field('save_pdf_settings'); ?>
+        <?php wp_nonce_field('small_business_suite_pdf_settings'); ?>
         
         <h2>Pozadí PDF</h2>
         <table class="form-table">

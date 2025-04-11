@@ -13,10 +13,9 @@ function pdf_settings_db_init() {
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql_pdf_settings = "CREATE TABLE IF NOT EXISTS $pdf_settings_table (
-        id mediumint(9) NOT NULL AUTO_INCREMENT,
         setting_key varchar(50) NOT NULL,
         setting_value text NOT NULL,
-        PRIMARY KEY  (id)
+        PRIMARY KEY  (setting_key)
     ) $charset_collate;";
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -28,67 +27,6 @@ function pdf_settings_db_init() {
 function get_pdf_settings() {
     global $wpdb;
     $settings_table = $wpdb->prefix . 'small_business_suite_pdf_settings';
-    
-    // Zpracování formuláře
-    if (isset($_POST['save_settings']) && check_admin_referer('save_pdf_settings')) {
-        // Uložení pozadí
-        if (isset($_FILES['background_image']) && $_FILES['background_image']['error'] == 0) {
-            $upload_dir = wp_upload_dir();
-            $target_dir = $upload_dir['basedir'] . '/small-business-suite/';
-            
-            if (!file_exists($target_dir)) {
-                wp_mkdir_p($target_dir);
-            }
-            
-            $file_name = basename($_FILES['background_image']['name']);
-            $target_file = $target_dir . $file_name;
-            
-            $imageFileType = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
-            if ($imageFileType == "jpg" || $imageFileType == "png" || $imageFileType == "jpeg") {
-                if (move_uploaded_file($_FILES['background_image']['tmp_name'], $target_file)) {
-                    $wpdb->replace(
-                        $settings_table,
-                        array(
-                            'setting_key' => 'background_image',
-                            'setting_value' => $upload_dir['baseurl'] . '/small-business-suite/' . $file_name
-                        ),
-                        array('%s', '%s')
-                    );
-                }
-            } else {
-                add_settings_error(
-                    'small_business_suite_settings',
-                    'invalid_file_type',
-                    'Podporované formáty obrázků jsou pouze JPG a PNG.',
-                    'error'
-                );
-            }
-        }
-        
-        // Uložení nastavení textu
-        $text_settings = array(
-            'discount_y' => $_POST['discount_y'],
-            'discount_color' => $_POST['discount_color'],
-            'discount_align' => $_POST['discount_align'],
-            'code_y' => $_POST['code_y'],
-            'code_color' => $_POST['code_color'],
-            'code_align' => $_POST['code_align'],
-            'date_y' => $_POST['date_y'],
-            'date_color' => $_POST['date_color'],
-            'date_align' => $_POST['date_align']
-        );
-        
-        foreach ($text_settings as $key => $value) {
-            $wpdb->replace(
-                $settings_table,
-                array(
-                    'setting_key' => $key,
-                    'setting_value' => $value
-                ),
-                array('%s', '%s')
-            );
-        }
-    }
     
     // Načtení aktuálních nastavení
     $settings = array();
@@ -115,3 +53,59 @@ function get_pdf_settings() {
     return $settings;
 }
 
+// Uložení nastavení PDF
+function save_pdf_settings() {
+    if (!current_user_can('manage_options')) {
+        wp_die('Nemáte oprávnění k této akci.');
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'small_business_suite_pdf_settings';
+
+    // Pole s povolenými klíči nastavení
+    $allowed_settings = array(
+        'background_image',
+        'discount_y',
+        'discount_color',
+        'discount_align',
+        'code_y',
+        'code_color',
+        'code_align',
+        'date_y',
+        'date_color',
+        'date_align'
+    );
+
+    // Zpracování nahrání obrázku
+    if (!empty($_FILES['background_image']['name'])) {
+        $upload = wp_handle_upload($_FILES['background_image'], array('test_form' => false));
+        if (!isset($upload['error'])) {
+            $wpdb->replace(
+                $table_name,
+                array(
+                    'setting_key' => 'background_image',
+                    'setting_value' => $upload['url']
+                ),
+                array('%s', '%s')
+            );
+        }
+    }
+
+    // Zpracování ostatních nastavení
+    foreach ($allowed_settings as $key) {
+        if (isset($_POST[$key]) && $key !== 'background_image') {
+            $value = sanitize_text_field($_POST[$key]);
+            $wpdb->replace(
+                $table_name,
+                array(
+                    'setting_key' => $key,
+                    'setting_value' => $value
+                ),
+                array('%s', '%s')
+            );
+        }
+    }
+
+    // Přidání zprávy o úspěchu
+    add_settings_error('pdf_settings', 'settings_updated', 'Nastavení bylo úspěšně uloženo.', 'updated');
+} 
