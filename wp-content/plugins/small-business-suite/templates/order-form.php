@@ -35,9 +35,9 @@ if (isset($_SESSION['sbs_order_message'])) {
             <label for="course">Kurz *</label>
             <select name="course" id="course" required>
                 <option value="">Vyberte kurz</option>
-                <option value="Sebeobrana proti podvodům" <?php selected(isset($_POST['course']) && $_POST['course'] === 'Sebeobrana proti podvodům'); ?>>Sebeobrana proti podvodům</option>
-                <option value="Nastartujte své myšlení" <?php selected(isset($_POST['course']) && $_POST['course'] === 'Nastartujte své myšlení'); ?>>Nastartujte své myšlení</option>
-                <option value="Sebeobrana proti dezinformacím" <?php selected(isset($_POST['course']) && $_POST['course'] === 'Sebeobrana proti dezinformacím'); ?>>Sebeobrana proti dezinformacím</option>
+                <option value="Sebeobrana proti podvodům" <?php selected(isset($_POST['course']) && $_POST['course'] === 'Sebeobrana proti podvodům' || isset($_GET['course']) && $_GET['course'] === 'Sebeobrana proti podvodům'); ?>>Sebeobrana proti podvodům</option>
+                <option value="Nastartujte své myšlení" <?php selected(isset($_POST['course']) && $_POST['course'] === 'Nastartujte své myšlení' || isset($_GET['course']) && $_GET['course'] === 'Nastartujte své myšlení'); ?>>Nastartujte své myšlení</option>
+                <option value="Sebeobrana proti dezinformacím" <?php selected(isset($_POST['course']) && $_POST['course'] === 'Sebeobrana proti dezinformacím' || isset($_GET['course']) && $_GET['course'] === 'Sebeobrana proti dezinformacím'); ?>>Sebeobrana proti dezinformacím</option>
             </select>
         </div>
 

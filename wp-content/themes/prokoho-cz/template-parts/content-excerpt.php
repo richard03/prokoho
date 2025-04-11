@@ -25,6 +25,6 @@
     <div class="custom-box-footer">
     <a href="<?php the_permalink(); ?>">Více o kurzu</a>
         &nbsp;
-        <a class="custom-btn" href="/objednavka/">Objednat</a>
+        <a class="custom-btn" href="/objednavka/?course=<?php echo urlencode(get_the_title()); ?>">Objednat</a>
     </div>
 </div> 
