@@ -274,6 +274,17 @@ function process_order() {
         array('%s', '%s', '%s', '%s', '%d', '%s', '%s')
     );
 
+    $order_data = array(
+        'name' => $name,
+        'email' => $email,
+        'phone' => $phone,
+        'course' => $course,
+        'number_of_persons' => $number_of_persons,  
+        'discount_code' => $discount_code,
+        'created_at' => current_time('mysql')
+    );
+    send_order_confirmation_email($order_data);
+
     if ($result) {
         // Aktualizace stavu slevového kódu
         if ($voucher_data) {

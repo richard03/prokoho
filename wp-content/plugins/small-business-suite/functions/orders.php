@@ -41,4 +41,29 @@ function get_orders() {
     return $orders;
 }
 
+// Funkce pro odeslání potvrzovacího e-mailu
+function send_order_confirmation_email($order_data) {
+    $to = $order_data['email'];
+    $subject = 'Potvrzení objednávky kurzu - ' . get_bloginfo('name');
+    
+    $message = "Dobrý den,\n\n";
+    $message .= "děkujeme za Vaši objednávku kurzu " . $order_data['course'] . ".\n\n";
+    $message .= "Detaily objednávky:\n";
+    $message .= "Jméno: " . $order_data['name'] . "\n";
+    $message .= "E-mail: " . $order_data['email'] . "\n";
+    $message .= "Telefon: " . $order_data['phone'] . "\n";
+    $message .= "Kurz: " . $order_data['course'] . "\n";
+    $message .= "Počet osob: " . $order_data['number_of_persons'] . "\n";
+    if (!empty($order_data['voucher'])) {
+        $message .= "Slevový kód: " . $order_data['voucher'] . "\n";
+    }
+    $message .= "\nV nejbližší době Vás budeme kontaktovat s dalšími informacemi.\n\n";
+    $message .= "S pozdravem,\n";
+    $message .= get_bloginfo('name');
+
+    $headers = array('Content-Type: text/plain; charset=UTF-8');
+    
+    return wp_mail($to, $subject, $message, $headers);
+}
+
 
