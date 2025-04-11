@@ -203,7 +203,9 @@ function generate_voucher_pdf($discount, $code, $valid_to) {
     $cell_width = $page_width - ($margin_left + $margin_right);
 
     // Sleva
-    $text = $discount . ' CZK';
+    // $text = $discount . ' CZK';
+    $text = $discount . ' Kč';
+    $text = iconv('UTF-8', 'cp1250', $text);
     $pdf->SetFont('Barlow', 'B', 60);
     list($r, $g, $b) = hex2rgb($settings['discount_color']);
     $pdf->SetTextColor($r, $g, $b);

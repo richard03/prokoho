@@ -214,74 +214,140 @@ add_action('template_redirect', 'pdf_template_redirect');
 
 
 
+// Zpracování objednávky
+function process_order() {
+    // Kontrola, zda byl formulář odeslán
+    if (!isset($_POST['submit_order']) || !wp_verify_nonce($_POST['order_nonce'], 'submit_order')) {
+        return;
+    }
 
+    // Sanitizace vstupních dat
+    $name = sanitize_text_field($_POST['name']);
+    $email = sanitize_email($_POST['email']);
+    $phone = sanitize_text_field($_POST['phone']);
+    $course = sanitize_text_field($_POST['course']);
+    $number_of_persons = intval($_POST['number_of_persons']);
+    $discount_code = sanitize_text_field($_POST['voucher']);
 
-// Shortcode pro objednávkový formulář
-function small_business_suite_order_form_shortcode() {
-    ob_start();
-    
-    // Zpracování formuláře
-    if (isset($_POST['submit_order'])) {
-        if (!wp_verify_nonce($_POST['order_nonce'], 'submit_order')) {
-            wp_die('Neplatný požadavek');
-        }
+    // Validace povinných polí
+    if (empty($name) || empty($email) || empty($phone) || empty($course) || $number_of_persons < 1) {
+        $_SESSION['sbs_order_message'] = array(
+            'type' => 'error',
+            'text' => 'Prosím vyplňte všechna povinná pole.'
+        );
+        return;
+    }
 
-        $name = sanitize_text_field($_POST['name']);
-        $email = sanitize_email($_POST['email']);
-        $phone = sanitize_text_field($_POST['phone']);
-        $course = sanitize_text_field($_POST['course']);
-        $number_of_persons = intval($_POST['number_of_persons']);
-        $voucher = sanitize_text_field($_POST['voucher']);
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'small_business_suite_orders';
 
-        if (empty($name) || empty($email) || empty($phone) || empty($course) || $number_of_persons < 1) {
-            $error = 'Prosím vyplňte všechna povinná pole';
-        } else {
-            global $wpdb;
-            $table_name = $wpdb->prefix . 'small_business_suite_orders';
+    // Kontrola slevového kódu
+    $voucher_table = $wpdb->prefix . 'small_business_suite_vouchers';
+    $voucher_data = null;
+    if (!empty($discount_code)) {
+        $voucher_data = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $voucher_table WHERE code = %s AND status = 'active'",
+            $discount_code
+        ));
 
-            // Kontrola slevového kódu
-            $voucher_table = $wpdb->prefix . 'small_business_suite_vouchers';
-            $voucher_data = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM $voucher_table WHERE voucher = %s AND status = 'active'",
-                $voucher
-            ));
-
-            if (!empty($voucher) && !$voucher_data) {
-                $error = 'Neplatný slevový kód';
-            } else {
-                // Uložení objednávky
-                $wpdb->insert(
-                    $table_name,
-                    array(
-                        'name' => $name,
-                        'email' => $email,
-                        'phone' => $phone,
-                        'course' => $course,
-                        'number_of_persons' => $number_of_persons,
-                        'voucher' => $voucher,
-                        'order_date' => current_time('mysql')
-                    ),
-                    array('%s', '%s', '%s', '%s', '%d', '%s', '%s')
-                );
-
-                // Aktualizace stavu slevového kódu
-                if ($voucher_data) {
-                    $wpdb->update(
-                        $voucher_table,
-                        array('status' => 'redeemed'),
-                        array('id' => $voucher_data->id)
-                    );
-                }
-
-                $success = 'Objednávka byla úspěšně odeslána';
-            }
+        if (!$voucher_data) {
+            $_SESSION['sbs_order_message'] = array(
+                'type' => 'error',
+                'text' => 'Neplatný slevový kód.'
+            );
+            return;
         }
     }
-    
+
+    // Uložení objednávky
+    $result = $wpdb->insert(
+        $table_name,
+        array(
+            'name' => $name,
+            'email' => $email,
+            'phone' => $phone,
+            'course' => $course,
+            'number_of_persons' => $number_of_persons,
+            'discount_code' => $discount_code,
+            'created_at' => current_time('mysql')
+        ),
+        array('%s', '%s', '%s', '%s', '%d', '%s', '%s')
+    );
+
+    if ($result) {
+        // Aktualizace stavu slevového kódu
+        if ($voucher_data) {
+            $wpdb->update(
+                $voucher_table,
+                array('status' => 'redeemed'),
+                array('id' => $voucher_data->id)
+            );
+        }
+
+        $_SESSION['sbs_order_message'] = array(
+            'type' => 'success',
+            'text' => 'Objednávka byla úspěšně odeslána.'
+        );
+    } else {
+        $error_message = 'Nepodařilo se uložit objednávku. ';
+        if ($wpdb->last_error) {
+            $error_message .= 'Chyba databáze: ' . $wpdb->last_error;
+        } else {
+            $error_message .= 'Zkuste to prosím znovu.';
+        }
+        
+        $_SESSION['sbs_order_message'] = array(
+            'type' => 'error',
+            'text' => $error_message
+        );
+    }
+}
+
+// Přidání endpointu pro objednávkový formulář
+function order_add_endpoint() {
+    add_rewrite_rule(
+        '^order-submit/?$',
+        'index.php?order_submit=1',
+        'top'
+    );
+    flush_rewrite_rules();
+}
+
+// Registrace query var pro objednávkový formulář
+function order_register_query_var($vars) {
+    $vars[] = 'order_submit';
+    return $vars;
+}
+
+// Zpracování požadavku na objednávku
+function order_template_redirect() {
+    if (get_query_var('order_submit')) {
+        process_order();
+        wp_redirect(wp_get_referer() ?: home_url());
+        exit;
+    }
+}
+
+// Přidání akcí a filtrů pro objednávkový formulář
+add_action('init', 'order_add_endpoint');
+add_filter('query_vars', 'order_register_query_var');
+add_action('template_redirect', 'order_template_redirect');
+
+// Inicializace session
+function sbs_init_session() {
+    if (!session_id()) {
+        session_start();
+    }
+}
+add_action('init', 'sbs_init_session', 1);
+
+// Shortcode pro objednávkový formulář
+function sbs_order_form_shortcode() {
+    ob_start();
     // Načtení šablony
     include plugin_dir_path(__FILE__) . 'templates/order-form.php';
     
     return ob_get_clean();
 }
-add_shortcode('small_business_suite_order_form', 'small_business_suite_order_form_shortcode');
+add_shortcode('sbs_order_form', 'sbs_order_form_shortcode');
 
