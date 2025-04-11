@@ -160,26 +160,7 @@ function display_posts_shortcode($atts) {
     if ($query->have_posts()) :
         echo '<div class="custom-posts-container">';
         while ($query->have_posts()) : $query->the_post();
-            ?>
-            <div class="custom-box custom-box-h25 custom-box-first">
-                <h3 class="custom-box-title" style="height: 34px;">
-                    <a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
-                </h3>
-                <div class="custom-box-content" style="height: 323px;">
-                    <?php if (has_post_thumbnail()) : ?>
-                        <div class="post-thumbnail" style="margin-bottom: 1rem;">
-                            <a href="<?php the_permalink(); ?>">
-                                <?php the_post_thumbnail('medium', array('style' => 'max-width: 100%; height: auto;')); ?>
-                            </a>
-                        </div>
-                    <?php endif; ?>
-                    <?php the_excerpt(); ?>
-                </div>
-                <div class="custom-box-footer" style="height: 34px;">
-                    <a href="<?php the_permalink(); ?>">Více o kurzu…</a>
-                </div>
-            </div>
-            <?php
+            get_template_part('template-parts/content', 'excerpt');
         endwhile;
         echo '</div>';
     endif;

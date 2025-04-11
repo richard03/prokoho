@@ -23,6 +23,8 @@
     </div>
     
     <div class="custom-box-footer">
-        <a href="<?php the_permalink(); ?>">Více o kurzu…</a>
+    <a href="<?php the_permalink(); ?>">Více o kurzu</a>
+        &nbsp;
+        <a class="custom-btn" href="/objednavka/">Objednat</a>
     </div>
 </div> 
