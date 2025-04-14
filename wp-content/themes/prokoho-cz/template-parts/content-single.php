@@ -35,6 +35,12 @@
 
 		<?php the_content(); ?>
 
+
+		<h2 class="wp-block-heading"><strong>Cena pro jednu osobu: 2 800 Kč</strong></h2>
+
+		<a class="custom-btn" href="/objednavka/?course=<?php echo urlencode(get_the_title()); ?>">Objednat</a>
+
+
 		<?php wp_link_pages( array(
 			'before' => '<div class="page-links">' . esc_html__( 'Pages:', 'chronus' ),
 			'after'  => '</div>',
@@ -43,6 +49,8 @@
 	</div><!-- .entry-content -->
 
 	<footer class="entry-footer">
+
+			
 
 		<?php chronus_entry_tags(); ?>
 		<?php do_action( 'chronus_author_bio' ); ?>
